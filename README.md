@@ -15,7 +15,7 @@ Three wires only. **Do not connect VBUS**; the FM-1 runs on its battery.
 | Seeed XIAO RP2040 | D6 (GP0) | D7 (GP1) | ✅ Recommended |
 | Raspberry Pi Debug Probe (UART connector) | TX (GP4) | RX (GP6) | ✅ Tested |
 | Raspberry Pi Pico | GP0 | GP1 | ⚠️ Builds, untested |
-| Raspberry Pi Pico 2 | GP0 | GP1 | ⚠️ Builds, untested. May need external 15 kΩ pull-downs on D+/D- (RP2350 E9) |
+| Raspberry Pi Pico 2 / Pico 2 W | GP0 | GP1 | ⚠️ Pico 2 W tested on one FM-1 (key, dump, write); no external pull-downs were needed. Pico 2 builds, untested |
 | Waveshare RP2350-USB-A / USB-C / USB-CM | GP12 | GP13 | ⚠️ Experimental, not recommended. Needs board mods (remove the 1.5 kΩ D+ pull-up, keep VBUS off the FM-1) and a firmware port |
 
 All boards: GND to GND.
@@ -50,7 +50,7 @@ cmake -S . -B build -DPICO_SDK_PATH=$HOME/pico-sdk -DPICO_BOARD=seeed_xiao_rp204
 make -C build -j8 fm1_transporter
 ```
 
-Pico: `-DPICO_BOARD=pico`. Pico 2: `-DPICO_BOARD=pico2`. Debug Probe: `-DFM1T_BOARD=debugprobe -DPICO_BOARD=pico`.
+Pico: `-DPICO_BOARD=pico`. Pico 2: `-DPICO_BOARD=pico2` (Pico 2 W: `pico2_w`). Debug Probe: `-DFM1T_BOARD=debugprobe -DPICO_BOARD=pico`.
 
 ## Cautions
 

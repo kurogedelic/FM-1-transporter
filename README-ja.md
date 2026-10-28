@@ -15,7 +15,7 @@ FM-1 の USB 信号線につないだ小型ボード（RP2040 / RP2350）を使�
 | Seeed XIAO RP2040 | D6 (GP0) | D7 (GP1) | ✅ 推奨 |
 | Raspberry Pi Debug Probe（UART コネクタ） | TX (GP4) | RX (GP6) | ✅ 動作確認済み |
 | Raspberry Pi Pico | GP0 | GP1 | ⚠️ ビルドのみ、未検証 |
-| Raspberry Pi Pico 2 | GP0 | GP1 | ⚠️ ビルドのみ、未検証。D+/D- に外付け 15 kΩ プルダウンが必要な場合あり（RP2350 E9） |
+| Raspberry Pi Pico 2 / Pico 2 W | GP0 | GP1 | ⚠️ Pico 2 W は FM-1 1台で検証済み（キー入力、ダンプ、書き込み）。外付けプルダウンは不要でした。Pico 2 はビルドのみ、未検証 |
 | Waveshare RP2350-USB-A / USB-C / USB-CM | GP12 | GP13 | ⚠️ 実験的・非推奨。基板の改造（D+ の 1.5 kΩ プルアップを外す、FM-1 に VBUS を出さない）とファームの移植が必要 |
 
 どのボードも GND 同士をつなぎます。
@@ -50,7 +50,7 @@ cmake -S . -B build -DPICO_SDK_PATH=$HOME/pico-sdk -DPICO_BOARD=seeed_xiao_rp204
 make -C build -j8 fm1_transporter
 ```
 
-Pico は `-DPICO_BOARD=pico`、Pico 2 は `-DPICO_BOARD=pico2`、Debug Probe は `-DFM1T_BOARD=debugprobe -DPICO_BOARD=pico` を指定します。
+Pico は `-DPICO_BOARD=pico`、Pico 2 は `-DPICO_BOARD=pico2`（Pico 2 W は `pico2_w`）、Debug Probe は `-DFM1T_BOARD=debugprobe -DPICO_BOARD=pico` を指定します。
 
 ## 注意事項
 
