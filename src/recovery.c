@@ -58,6 +58,7 @@
 #define PULSE_LOW_SAMPLES 3         // 300 us low = not just one of our 4 us pulses
 #define HANDOFF_PULSE_MS 6000       // matches every proven run; try lower once M0 works
 #define CAL_DONE_MIN_MS 1000        // a D+ drop after this long under pulses = calibration done
+#define FALSE_PULLUP_LOW_MS 1000    // D+ still low this long at the timeout = no ROM pull-up
 
 static PIO pio = pio0;
 static uint sm_key, sm_sof, off_key, off_sof;
@@ -91,6 +92,22 @@ void recovery_release_bus(void) {
 }
 
 static bool dp(void) { return gpio_get(PIN_DP); }
+
+// Confirms a D+ high seen by dp() before it is taken for the ROM's pull-up.
+// D+ is driven low for 1 us and released: the ROM's 1.5 kOhm pull-up brings
+// it back within the 2 us settle, a stale level does not. On an RP2350
+// (erratum E9: a released pad can hold a high level), or with an unpowered
+// FM-1 charged by the key clock, a plain read gave false handoffs. Called
+// once per candidate, so the ROM sees at most one extra edge.
+static bool dp_pulled_up(void) {
+    gpio_set_function(PIN_DP, GPIO_FUNC_SIO);
+    gpio_put(PIN_DP, 0);
+    gpio_set_dir(PIN_DP, GPIO_OUT);
+    busy_wait_us_32(1);
+    gpio_set_dir(PIN_DP, GPIO_IN);
+    busy_wait_us_32(2);
+    return gpio_get(PIN_DP);
+}
 static bool dm(void) { return gpio_get(PIN_DM); }
 
 static bool probe_high(uint pin) {
@@ -107,6 +124,7 @@ static bool probe_high(uint pin) {
 // Polarity A: D+ is the clock (side-set), D- carries the data.
 static void key_start(void) {
     pio_sm_set_enabled(pio, sm_key, false);
+    gpio_set_drive_strength(PIN_DP, GPIO_DRIVE_STRENGTH_2MA);   // pulse_start raised it
 
     pio_sm_config c = KEY_CONFIG(off_key);
     sm_config_set_set_pins(&c, PIN_DP, PIN_DM - PIN_DP + 1);
@@ -139,7 +157,10 @@ static int gap_sense(uint data_pin, bool *alive) {
         sleep_us(GAP_PROBE_SPACING_US);
 
         if (dp()) {
-            if (++dp_highs >= 2) return 2;
+            if (++dp_highs >= 2) {
+                if (dp_pulled_up()) return 2;
+                dp_highs = 0;
+            }
         } else {
             dp_highs = 0;
         }
@@ -178,7 +199,10 @@ static bool wait_dp_high(uint32_t timeout_ms) {
 
     while (time_us_64() < deadline) {
         if (dp()) {
-            if (++highs >= 5) return true;
+            if (++highs >= 5) {
+                if (dp_pulled_up()) return true;
+                highs = 0;
+            }
         } else {
             highs = 0;
         }
@@ -204,7 +228,10 @@ static bool wait_dp_high(uint32_t timeout_ms) {
 //     re-attach at 5.1 s, gave up at 7.2 s when no host answered. The host
 //     must already be running when the re-attach comes.
 //   - D+ held high for HANDOFF_PULSE_MS (the 6 s pattern from earlier runs).
-static void pulse_phase(void) {
+// Returns false, with the bus released, when D+ has been low for
+// FALSE_PULLUP_LOW_MS at the timeout: no ROM pull-up. The ROM's own early drop
+// (7.3 ms into a proven run) and its release-and-re-attach (~1.1 s) are shorter.
+static bool pulse_phase(void) {
     dlog("PULSE: D+ high (ROM pull-up), sending 4 us pulses every 1 ms");
     pulse_start();
 
@@ -221,7 +248,7 @@ static void pulse_phase(void) {
                 if (elapsed_us >= (uint64_t)CAL_DONE_MIN_MS * 1000) {
                     dlog("PULSE: D+ released after %.1f ms - calibration done, host takes over",
                          elapsed_us / 1000.0);
-                    return;
+                    return true;
                 }
                 dlog("PULSE: early D+ blip at %.1f ms, ignored", elapsed_us / 1000.0);
             }
@@ -230,8 +257,14 @@ static void pulse_phase(void) {
         }
 
         if (elapsed_us >= (uint64_t)HANDOFF_PULSE_MS * 1000) {
+            if (low_samples >= FALSE_PULLUP_LOW_MS * 1000 / PULSE_SAMPLE_US) {
+                recovery_release_bus();
+                dlog("PULSE: %d ms of pulses, D+ low for %.1f ms - no ROM pull-up, false ACK",
+                     HANDOFF_PULSE_MS, low_samples * PULSE_SAMPLE_US / 1000.0);
+                return false;
+            }
             dlog("PULSE: %d ms of pulses, D+=%d - handing off", HANDOFF_PULSE_MS, dp());
-            return;
+            return true;
         }
     }
 }
@@ -268,12 +301,12 @@ void recovery_run(void) {
             rgb(true, true, false);
 
             if (s == 2 || wait_dp_high(DP_HIGH_TIMEOUT_MS)) {
-                pulse_phase();
-                return;
+                if (pulse_phase()) return;
+                dlog("resuming key");
+            } else {
+                dlog("no D+ pull-up within %d ms (D+=%d D-=%d) - false ACK, resuming key",
+                     DP_HIGH_TIMEOUT_MS, dp(), dm());
             }
-
-            dlog("no D+ pull-up within %d ms (D+=%d D-=%d) - false ACK, resuming key",
-                 DP_HIGH_TIMEOUT_MS, dp(), dm());
             alive = false;
             was_alive = false;
             key_start();
