@@ -2,6 +2,8 @@
 
 [English](README.md)
 
+### ▶ [ウェブアプリを開く](https://kurogedelic.github.io/FM-1-transporter/web/)（Chrome / Edge）
+
 ![接続](docs/images/connection.png)
 
 FM-1 の USB 信号線につないだ小型ボード（RP2040 / RP2350）を使い、PC から **M-VAVE FM-1**（JieLi AC791N / WL82）の Flash を読み書きするツールです。
@@ -28,7 +30,7 @@ FM-1 の USB 信号線につないだ小型ボード（RP2040 / RP2350）を使�
 
 ## 使い方
 
-**ウェブアプリ**（Chrome / Edge）: `web/index.html` を開き、手順に従います。
+**ウェブアプリ**（Chrome / Edge）: **[https://kurogedelic.github.io/FM-1-transporter/web/](https://kurogedelic.github.io/FM-1-transporter/web/)** を開き、手順に従います。
 
 **CLI**（pyserial が必要）:
 

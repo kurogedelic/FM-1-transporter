@@ -2,6 +2,8 @@
 
 [日本語](README-ja.md)
 
+### ▶ [Open the web app](https://kurogedelic.github.io/FM-1-transporter/web/) (Chrome / Edge)
+
 ![Connection](docs/images/connection.png)
 
 Read and write the flash of the **M-VAVE FM-1** (JieLi AC791N / WL82) from a computer, through a small RP2040/RP2350 board wired to the FM-1's USB lines.
@@ -28,7 +30,7 @@ All boards: GND to GND.
 
 ## Use
 
-**Web app** (Chrome or Edge): open `web/index.html` and follow the steps.
+**Web app** (Chrome or Edge): open **[https://kurogedelic.github.io/FM-1-transporter/web/](https://kurogedelic.github.io/FM-1-transporter/web/)** and follow the steps.
 
 **CLI** (needs pyserial):
 
