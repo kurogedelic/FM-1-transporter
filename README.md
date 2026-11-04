@@ -25,7 +25,7 @@ All boards: GND to GND.
 ## Install
 
 1. Download the UF2 for your board from [Releases](../../releases).
-2. Hold BOOTSEL, plug the board in, and copy the UF2 to the `RPI-RP2` drive.
+2. Hold BOOTSEL and plug the board in. Install the UF2 from the [web app](https://kurogedelic.github.io/FM-1-transporter/web/) (RP2040 boards), or copy it to the `RPI-RP2` drive.
 3. Get `wl82loader.bin` from [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool). It is not included here; it is sent to the board's RAM when you use the tool.
 
 ## Use
