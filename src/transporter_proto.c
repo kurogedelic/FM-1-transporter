@@ -85,7 +85,7 @@ void fm1_proto_rx(const char *buf, unsigned len) {
             continue;
         }
         if (!strncmp(rx_line, "ldr ", 4)) {
-            // ldr <off> <len> <crc32>, then <len> raw bytes (1..4096)
+            // ldr <off> <len> <crc32> [<addr> <size>], then <len> raw bytes (1..4096)
             char *a = strchr(rx_line + 4, ' ');
             unsigned long n = a ? strtoul(a + 1, NULL, 0) : 0;
             if (n >= 1 && n <= JL_SECTOR_SIZE) {
@@ -289,8 +289,8 @@ static void do_memr(uint32_t addr, uint32_t len) {
     tx_line("END %08lX", (unsigned long)crc32_update(0, io, len));
 }
 
-// ldr <off> <len> <crc32>: payload already in sector[0..len)
-static void do_ldr(uint32_t off, uint32_t len, uint32_t crc) {
+// ldr <off> <len> <crc32> [<addr> <size>]: payload already in sector[0..len)
+static void do_ldr(uint32_t off, uint32_t len, uint32_t crc, uint32_t addr, uint32_t size) {
     uint32_t got = crc32_update(0, sector, len);
     if (got != crc) {
         tx_line("ERR crc %08lX", (unsigned long)got);
@@ -300,7 +300,7 @@ static void do_ldr(uint32_t off, uint32_t len, uint32_t crc) {
         tx_line("ERR loader-running");
         return;
     }
-    tx_line(jl_loader_load(off, sector, len) ? "OK" : "ERR loader-range");
+    tx_line(jl_loader_load(off, sector, len, addr, size) ? "OK" : "ERR loader-range");
 }
 
 // jump <addr> <arg>: call RAM code through the ROM; it must return (< ~2 s)
@@ -327,9 +327,9 @@ void fm1_proto_poll(void) {
     memcpy(line, req, sizeof(line));
     req_pending = false;
 
-    char *argv[4] = {0};
+    char *argv[6] = {0};
     int argc = 0;
-    for (char *tok = strtok(line, " \t"); tok && argc < 4; tok = strtok(NULL, " \t")) {
+    for (char *tok = strtok(line, " \t"); tok && argc < 6; tok = strtok(NULL, " \t")) {
         argv[argc++] = tok;
     }
     if (!argc) return;
@@ -371,9 +371,10 @@ void fm1_proto_poll(void) {
         } else {
             do_write_sector(strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 16));
         }
-    } else if (!strcmp(argv[0], "ldr") && argc == 4) {
+    } else if (!strcmp(argv[0], "ldr") && (argc == 4 || argc == 6)) {
         do_ldr(strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 0),
-               strtoul(argv[3], NULL, 16));
+               strtoul(argv[3], NULL, 16), argc == 6 ? strtoul(argv[4], NULL, 0) : 0,
+               argc == 6 ? strtoul(argv[5], NULL, 0) : 0);
     } else if (!strcmp(argv[0], "memw") && argc == 4) {
         if (!fm1_host_uboot_ready()) {
             tx_line("ERR no-uboot");

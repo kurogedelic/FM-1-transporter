@@ -14,8 +14,12 @@
 //                            USB_KEY mode (for a unit stuck with USB up)
 //   info                  -> OK key=980F type=3 id=856014 | ERR <why>
 //   read <addr> <len>     -> DATA <len>\n <len raw bytes> END <crc32>\n | ERR <why>
-//   ldr <off> <len> <crc32>\n <len raw bytes (<= 4096)>
-//                         -> OK | ERR <why>   (upload wl82loader.bin in order)
+//   ldr <off> <len> <crc32> [<addr> <size>]\n <len raw bytes (<= 4096)>
+//                         -> OK | ERR <why>   (upload the loader in order)
+//                            wl82loader.bin by default. The first chunk may
+//                            give another loader's RAM address and size,
+//                            such as m-bootloader's flash loader (MIT) at
+//                            0x1C20000, stored ciphered in 512-byte blocks.
 //   wsec <addr> <crc32>\n <4096 raw bytes>
 //                         -> OK | ERR <why>   (erase + write + read-back verify)
 //
