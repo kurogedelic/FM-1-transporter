@@ -13,12 +13,14 @@ main{width:100%;max-width:460px}
 h1{font-size:18px;font-weight:600;margin:0 0 24px;letter-spacing:.02em}
 .step{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:10px;opacity:.45}
 .step.on{opacity:1}.step.done{opacity:1}
-.head{display:flex;align-items:center;gap:12px;font-weight:600}
+.head{display:flex;align-items:center;gap:12px;font-weight:600;cursor:pointer;user-select:none}
 .n{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--mut);display:grid;place-items:center;font-size:12px;color:var(--mut);flex:none}
 .on .n{border-color:var(--acc);color:var(--acc)}
 .done .n{background:var(--ok);border-color:var(--ok);color:#fff}
 .body{display:none;margin:12px 0 0 36px}
-.on .body{display:block}
+.on .body,.open .body,.done .body{display:block}
+.done:not(.open):not(.on) .body>:not(.st){display:none}
+.done:not(.open):not(.on) .st{margin-top:0}
 .msg{color:var(--mut);margin:0 0 12px;font-size:14px}
 button,label.b{display:inline-block;background:var(--acc);color:var(--bg);border:0;border-radius:8px;padding:8px 16px;font:inherit;cursor:pointer}
 button:disabled{opacity:.4;cursor:default}
@@ -38,12 +40,12 @@ progress{width:100%;height:6px;margin-top:12px;accent-color:var(--acc)}
 <button id="connect">Connect</button><div class="st"></div></div></section>
 
 <section class="step" id="s2"><div class="head"><span class="n">2</span>Loader</div><div class="body">
-<p class="msg">Choose <code>wl82loader.bin</code> (jl-uboot-tool). It stays in your browser and the Transporter's RAM.</p>
-<label class="b">Choose file<input type="file" id="loader"></label><div class="st"></div></div></section>
+<p class="msg">Switch the FM-1 on and wait until the Transporter's LED stops blinking red, briefly shows other colours, then shows green alone (on the Debug Probe, the green LED by the UART port). Then choose <code>wl82loader.bin</code> (jl-uboot-tool). It stays in your browser and the Transporter's RAM. A black-screen unit: switch it off, press Reconnect, pick the port again, then switch it on.</p>
+<label class="b">Choose file<input type="file" id="loader"></label> <button class="s" id="rekey">Reconnect</button><div class="st"></div></div></section>
 
 <section class="step" id="s3"><div class="head"><span class="n">3</span>FM-1</div><div class="body">
-<p class="msg">Power the FM-1 on. Stock V15 enters boot mode by itself. A black-screen unit: switch it off, press Reconnect, then switch it on.</p>
-<button id="info">Check</button> <button class="s" id="rekey">Reconnect</button><div class="st"></div></div></section>
+<p class="msg">Checks the chip key and flash ID. Stock V15 enters boot mode by itself.</p>
+<button id="info">Check</button><div class="st"></div></div></section>
 
 <section class="step" id="s4"><div class="head"><span class="n">4</span>Backup</div><div class="body">
 <p class="msg">Reads the whole flash twice and saves it.</p>
@@ -58,7 +60,7 @@ progress{width:100%;height:6px;margin-top:12px;accent-color:var(--acc)}
 <script>
 const FLASH=0x100000, LO=0x4000, HI=0x93000, SEC=4096;
 const $=id=>document.getElementById(id), enc=new TextEncoder(), dec=new TextDecoder();
-let port, writer, buf=new Uint8Array(0), backup=null, image=null;
+let port, writer, reader, buf=new Uint8Array(0), backup=null, image=null;
 
 const crcT=new Uint32Array(256).map((_,i)=>{let c=i;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;return c>>>0});
 const crc32=d=>{let c=~0;for(const b of d)c=crcT[(c^b)&255]^(c>>>8);return(~c)>>>0};
@@ -69,8 +71,8 @@ function go(s){$(s).classList.add('done');$(s).classList.remove('on');const n=$(
 function bar(s,v,max){const p=$(s).querySelector('progress');p.hidden=false;p.max=max;p.value=v}
 
 async function pump(){
-  const r=port.readable.getReader();
-  for(;;){const{value,done}=await r.read();if(done)break;const m=new Uint8Array(buf.length+value.length);m.set(buf);m.set(value,buf.length);buf=m}
+  reader=port.readable.getReader();
+  for(;;){const{value,done}=await reader.read().catch(()=>({done:true}));if(done)break;const m=new Uint8Array(buf.length+value.length);m.set(buf);m.set(value,buf.length);buf=m}
 }
 async function take(n,ms=30000){
   const end=Date.now()+ms;
@@ -81,6 +83,13 @@ async function line(ms=30000){
   const end=Date.now()+ms;
   for(;;){const i=buf.indexOf(10);if(i>=0){const l=dec.decode(buf.slice(0,i)).trim();buf=buf.slice(i+1);return l}
     if(Date.now()>end)throw Error('timeout');await new Promise(r=>setTimeout(r,2))}
+}
+async function closePort(){
+  try{await reader?.cancel()}catch{}
+  try{reader?.releaseLock()}catch{}
+  try{writer?.releaseLock()}catch{}
+  try{await port?.close()}catch{}
+  reader=writer=undefined;
 }
 const send=async b=>{buf=new Uint8Array(0);await writer.write(b)};
 async function req(l,ms){await send(enc.encode(l+'\n'));return line(ms)}
@@ -100,12 +109,12 @@ const same=(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]);
 $('connect').onclick=async()=>{
   try{
     port=await navigator.serial.requestPort();
-    await port.open({baudRate:115200});
+    await port.open({baudRate:115200,bufferSize:1<<20});
     writer=port.writable.getWriter();pump();
     if(await req('ping',1500)!=='PONG')throw Error('no reply');
     say('s1','Connected','ok');go('s1');
   }catch(e){
-    try{await writer?.releaseLock();await port?.close()}catch{}
+    await closePort();
     say('s1',(e.message==='timeout'?'Wrong port, pick the other one':e.message),'err');
   }
 };
@@ -120,7 +129,11 @@ $('loader').onchange=async e=>{
       const r=await line(5000);if(r!=='OK')throw Error(r);
     }
     say('s2','Loaded','ok');go('s2');
-  }catch(x){say('s2',x.message,'err')}
+  }catch(x){
+    // Until the FM-1's boot ROM answers, the Transporter only answers ping.
+    say('s2',x.message==='timeout'?'No answer: the Transporter is still waiting for the FM-1. Press Reconnect, pick the port again, switch the FM-1 on, then choose the file.':x.message,'err');
+    e.target.value='';
+  }
 };
 
 async function check(){
@@ -141,9 +154,10 @@ $('info').onclick=async()=>{
 };
 $('rekey').onclick=async()=>{
   try{await req('rekey',3000)}catch{}
-  say('s3','Rebooting. Select the port again, then switch the FM-1 on.');
-  try{await writer.releaseLock();await port.close()}catch{}
-  $('s1').classList.replace('done','on');$('s2').classList.remove('on','done');$('s3').classList.remove('on','done');
+  await closePort();
+  say('s1','Rebooting. Press Connect and pick the port again, then switch the FM-1 on.');
+  say('s2','');
+  $('s1').classList.remove('done');$('s1').classList.add('on');$('s2').classList.remove('on','done');$('s3').classList.remove('on','done');
 };
 
 $('dump').onclick=async()=>{
@@ -186,6 +200,7 @@ $('write').onclick=async()=>{
   }catch(e){say('s5',e.message,'err');$('write').disabled=false}
 };
 
+for(const h of document.querySelectorAll('.head'))h.onclick=()=>h.parentElement.classList.toggle('open');
 if(!('serial' in navigator))say('s1','Use Chrome or Edge (Web Serial)','err');
 </script>
 </body>
