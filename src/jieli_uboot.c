@@ -11,7 +11,6 @@
 #include "log.h"
 #include "pio_host.h"
 
-#define LOADER_ADDR 0x1C02000u
 #define LOADER_ARG 0x0001
 
 // ROM UBOOT1.00
@@ -31,6 +30,8 @@
 
 static uint8_t loader_buf[JL_LOADER_SIZE];   // uploaded by the host (fm1t.py)
 static uint32_t loader_len;
+static uint32_t loader_addr = JL_LOADER_ADDR;
+static uint32_t loader_size = JL_LOADER_SIZE;
 static bool loader_running;
 static uint16_t read_chunk = JL_IO_SIZE;
 static uint64_t last_cmd_us;
@@ -44,12 +45,26 @@ void jl_reset(void) {
 }
 
 bool jl_have_loader(void) {
-    return loader_len == JL_LOADER_SIZE;
+    return loader_size && loader_len == loader_size;
 }
 
-bool jl_loader_load(uint32_t off, const uint8_t *data, uint32_t len) {
-    if (off == 0) loader_len = 0;
-    if (off != loader_len || len > JL_LOADER_SIZE - off) return false;
+bool jl_loader_load(uint32_t off, const uint8_t *data, uint32_t len, uint32_t addr,
+                    uint32_t size) {
+    if (off == 0) {
+        if (!addr && !size) {
+            addr = JL_LOADER_ADDR;
+            size = JL_LOADER_SIZE;
+        }
+        loader_len = 0;
+        loader_size = 0;    // nothing to run until the new loader is whole
+        if (!size || size > JL_LOADER_SIZE || addr < JL_LOADER_RAM_MIN ||
+            addr > JL_LOADER_RAM_END - size || (addr % JL_IO_SIZE)) {
+            return false;
+        }
+        loader_addr = addr;
+        loader_size = size;
+    }
+    if (!loader_size || off != loader_len || len > loader_size - off) return false;
     memcpy(&loader_buf[off], data, len);
     loader_len += len;
     return true;
@@ -121,20 +136,20 @@ bool jl_ensure_loader(void) {
         return false;
     }
     if (!jl_have_loader()) {
-        dlog("JL: wl82loader not uploaded (fm1t.py --loader)");
+        dlog("JL: loader not uploaded (fm1t.py --loader)");
         return false;
     }
-    dlog("JL: uploading wl82loader (%u bytes) to %08lX", (unsigned)JL_LOADER_SIZE,
-         (unsigned long)LOADER_ADDR);
+    dlog("JL: uploading the loader (%lu bytes) to %08lX", (unsigned long)loader_size,
+         (unsigned long)loader_addr);
 
     // The blob is shipped already ciphered: send it raw, 512 bytes at a time.
-    for (uint32_t off = 0; off < JL_LOADER_SIZE; off += JL_IO_SIZE) {
-        uint16_t n = (uint16_t)((JL_LOADER_SIZE - off) < JL_IO_SIZE
-                                    ? (JL_LOADER_SIZE - off) : JL_IO_SIZE);
+    for (uint32_t off = 0; off < loader_size; off += JL_IO_SIZE) {
+        uint16_t n = (uint16_t)((loader_size - off) < JL_IO_SIZE
+                                    ? (loader_size - off) : JL_IO_SIZE);
         memcpy(block, &loader_buf[off], n);
 
         uint8_t args[9];
-        put_be32(args, LOADER_ADDR + off);
+        put_be32(args, loader_addr + off);
         args[4] = (uint8_t)(n >> 8);
         args[5] = (uint8_t)n;
         args[6] = 0x00;
@@ -151,7 +166,7 @@ bool jl_ensure_loader(void) {
     }
 
     uint8_t args[6];
-    put_be32(args, LOADER_ADDR);
+    put_be32(args, loader_addr);
     args[4] = (uint8_t)(LOADER_ARG >> 8);
     args[5] = (uint8_t)LOADER_ARG;
     if (!cmd_exec(CMD_JUMP, args, sizeof(args))) {
@@ -286,7 +301,7 @@ void jl_keepalive(void) {
 //--------------------------------------------------------------------+
 // WL82 UBOOT1.00 runs every memory write/read through jl_crc_cipher, per
 // transfer. These refuse to run once the loader is up: it lives at
-// LOADER_ADDR, the same address RAM-run images use, and would be clobbered.
+// JL_LOADER_ADDR, the same address RAM-run images use, and would be clobbered.
 
 bool jl_loader_running(void) {
     return loader_running;

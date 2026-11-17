@@ -30,15 +30,24 @@ typedef struct {
 // Forget loader state (call on every new mount).
 void jl_reset(void);
 
-#define JL_LOADER_SIZE 24064    // wl82loader.bin
+#define JL_LOADER_SIZE 24064    // wl82loader.bin, the default loader
+#define JL_LOADER_ADDR 0x1C02000u
+// Where another loader may go, such as m-bootloader's flash loader (MIT),
+// built for 0x1C20000 or 0x1C28000.
+#define JL_LOADER_RAM_MIN 0x1C00000u
+#define JL_LOADER_RAM_END 0x1C80000u
 
 // True once the host has uploaded the whole loader.
 bool jl_have_loader(void);
 
-// Stores a loader chunk; chunks must arrive in order, starting at off 0.
-bool jl_loader_load(uint32_t off, const uint8_t *data, uint32_t len);
+// Stores a loader chunk; chunks must arrive in order, starting at off 0. The
+// first chunk sets the loader's RAM address and size; 0 for both means
+// wl82loader.bin at JL_LOADER_ADDR. The loader must be stored already ciphered
+// in 512-byte blocks, as wl82loader.bin is.
+bool jl_loader_load(uint32_t off, const uint8_t *data, uint32_t len, uint32_t addr,
+                    uint32_t size);
 
-// Uploads wl82loader to RAM and jumps to it, once per mount.
+// Uploads the loader to RAM and jumps to it, once per mount.
 bool jl_ensure_loader(void);
 
 bool jl_info(jl_info_t *info);
