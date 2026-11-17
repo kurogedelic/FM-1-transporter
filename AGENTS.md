@@ -31,5 +31,5 @@ python3 tools/fm1t.py --loader L write --package P.fwsc --ref backup.bin --write
 - Always run the dry run first and show the user its result. Run `--write` only after the user says so for that package.
 - Writes cover `0x4000`–`0x93000` only; the firmware refuses anything else. Do not try to work around it.
 - If a write or verify fails, do not power-cycle or retry blindly. Report the exact output and tell the user not to power the FM-1 off.
-- `write` needs the `fm-1-research-lab` checkout (`FM1_RESEARCH`) for package checks. If missing, say so; do not skip the checks.
+- `write` accepts only the stock V15 `FM-1.fwsc` (pinned SHA-256). It is not redistributed; get it from M-VAVE's download page.
 - If `info` does not return `key=980F` and `id=856014`, it is not an FM-1. Stop.

@@ -1,8 +1,8 @@
 // FM-1 Transporter - JieLi USB_KEY entry and ROM keep-alive pulses.
 //
 // The key sender and ACK detector are the known-good recovery baseline,
-// unchanged except that only polarity A is used. Hardware findings from
-// fm-1-research-lab (2026-09-30 / 2026-10-01) that shape the rest:
+// unchanged except that only polarity A is used. Hardware findings
+// (2026-09-30 / 2026-10-01) that shape the rest:
 //   - Polarity A (D+ = clock, D- = data) took the key every time; B never did.
 //   - After the ACK the ROM pulls D+ up within ~2 ms and keeps it up
 //     while 1 ms pulses arrive (6 s in earlier runs). On 2026-10-01 it

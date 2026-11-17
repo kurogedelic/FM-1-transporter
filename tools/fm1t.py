@@ -11,10 +11,9 @@
     fm1t.py selftest-write --ref earlier-dump.bin --sector 0x92000 [--write]
     fm1t.py ramrun IMAGE.bin [--addr 0x1C02000] [--clear A:N] [--poke A:V] [--read A:N]
 
-`write` follows fm-1-research-lab's restore policy, and is a dry run unless
---write is given:
-  1. the package must pass fm1_ota.require_reviewed (stock V15, or a PASSED
-     hookcheck manifest; known-bad hashes refused);
+`write` is a dry run unless --write is given:
+  1. the package must be the stock V15 FM-1.fwsc (pinned SHA-256; get it from
+     M-VAVE's download page);
   2. chip key 980F and flash 856014;
   3. a fresh full read must equal --ref over the package region;
   4. only differing 4 KiB sectors are written; none may lie below 0x4000;
@@ -25,8 +24,7 @@ The firmware itself refuses any sector outside [0x4000, 0x93000).
 info/dump/write enter UBOOT by themselves when stock V15 is running on the
 transporter. A unit without working firmware needs the USB_KEY path: start
 the transporter with the FM-1 off (or `rekey`), then switch the FM-1 on.
-Requires pyserial, and fm-1-research-lab (FM1_RESEARCH, default
-~/fm-1-research-lab) for `write`.
+Requires pyserial.
 """
 
 import argparse
@@ -220,22 +218,51 @@ def compare(ref_path, addr, data):
 WRITE_MIN = 0x4000     # flash header, SPL, isd_config below this: never written
 
 
+# SHA-256 of the stock V15 package (FM-1.fwsc from M-VAVE's download page).
+# The package is not redistributed; obtain it from the official site.
+STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
+
+
+def _crc16(data):
+    crc = 0
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) if crc & 0x8000 else crc << 1
+        crc &= 0xFFFF
+    return crc
+
+
+def _enc(buf, off, size, key=0xFFFF):
+    for i in range(size):
+        buf[off + i] ^= key & 0xFF
+        key = ((key << 1) ^ (0x1021 if key & 0x8000 else 0)) & 0xFFFF
+
+
 def package_image(path):
-    """Gate the package with fm-1-research-lab's review check, then return its
+    """Accept only the stock V15 package (pinned SHA-256), then return its
     type-0 flash entry (raw flash image from address 0)."""
-    research = os.path.expanduser(os.environ.get("FM1_RESEARCH", "~/fm-1-research-lab"))
-    sys.path.insert(0, os.path.join(research, "tools"))
-    try:
-        from fm1_ota import require_reviewed
-        from fm1fw import Firmware
-    except ImportError as e:
-        sys.exit(f"fm1t: fm-1-research-lab tools not importable from {research} ({e}); "
-                 "refusing to write without the package review")
-    require_reviewed(path)     # exits on known-bad or unreviewed packages
-    fw = Firmware(open(path, "rb").read())
-    e = next(e for e in fw.entries if e["type"] == 0)
-    img = bytes(fw.raw[e["data_off"] + fw.skew:e["data_off"] + fw.skew + e["size"]])
-    return img, fw.product
+    raw = open(path, "rb").read()
+    if hashlib.sha256(raw).hexdigest() != STOCK_V15_SHA256:
+        sys.exit("fm1t: refusing: package is not the stock V15 FM-1.fwsc "
+                 "(download it from M-VAVE's site)")
+    blocks, blk, keep = 20, 0x30, 0x2F
+    h = bytearray()
+    for i in range(blocks):
+        h += raw[i * blk:i * blk + keep]
+    skew = blocks * blk - len(h)
+    product = "".join(chr((raw[i * blk + keep] - i - 1) & 0xFF)
+                      for i in range(blocks) if raw[i * blk + keep] != 0x7D)
+    _enc(h, 0, 0x40)
+    nent = int.from_bytes(h[12:14], "little")
+    for off in range(0x40, 0x40 + nent * 0x50, 0x50):
+        e = bytearray(h[off:off + 0x50])
+        _enc(e, 0, 0x50)
+        if int.from_bytes(e[0:2], "little") == 0:
+            doff = int.from_bytes(e[8:12], "little")
+            size = int.from_bytes(e[12:16], "little")
+            return bytes(raw[doff + skew:doff + skew + size]), product
+    sys.exit("fm1t: no flash entry in package")
 
 
 def cmd_write(s, args):
@@ -379,7 +406,7 @@ def mem_read(s, addr, length):
 
 def cmd_ramrun(s, args):
     """Load a RAM image through the ROM UBOOT1.00 and call it (no loader, no
-    flash access). Same semantics as fm-1-research-lab tools/fm1_ramrun.py."""
+    flash access)."""
     ensure_uboot(s)
     if status(s).get("loader_running") == "1":
         sys.exit("fm1t: the flash loader is running (it occupies 0x1C02000); RAM-run needs a "

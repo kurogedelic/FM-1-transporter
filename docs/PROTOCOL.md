@@ -1,6 +1,6 @@
 # JieLi WL82 UBOOT protocol
 
-Verified on the FM-1 with fm-1-research-lab.
+Verified on the FM-1.
 
 ## Entry
 
