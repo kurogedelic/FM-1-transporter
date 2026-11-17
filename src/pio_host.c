@@ -98,7 +98,7 @@ static bool edpt_sync(uint8_t daddr, uint8_t ep, void *buf, uint16_t len, uint32
 
 // Stock V15's USB-MIDI receive path compares every 8-byte transfer with
 // 04 F0 22 24 07 35 xx F7; xx = 7D calls the mask ROM UBOOT1.00 and never
-// returns (fm-1-research-lab tools/fm1_softkey.py). Nothing is written.
+// returns. Nothing is written.
 bool fm1_host_softkey(void) {
     static CFG_TUSB_MEM_ALIGN uint8_t pkt[8] = {0x04, 0xF0, 0x22, 0x24, 0x07, 0x35, 0x7D, 0xF7};
     uint8_t daddr = mounted_addr;

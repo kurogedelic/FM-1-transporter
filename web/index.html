@@ -27,11 +27,18 @@ input[type=file]{display:none}
 progress{width:100%;height:6px;margin-top:12px;accent-color:var(--acc)}
 .st{margin-top:10px;font-size:13px;color:var(--mut);word-break:break-all}
 .st.ok{color:var(--ok)}.st.err{color:var(--err)}
+a{color:inherit}
+#fw{margin-bottom:24px}
 </style>
 </head>
 <body>
 <main>
 <h1>FM-1 Transporter</h1>
+
+<section class="step on" id="fw"><div class="head"><span class="n">↓</span>Firmware (first time / update)</div><div class="body">
+<p class="msg">Download the UF2 for your board from <a href="https://github.com/kurogedelic/FM-1-transporter/releases/latest" target="_blank" rel="noopener">Releases</a>. Hold BOOTSEL while plugging the board in, then choose the UF2. RP2040 boards only (XIAO RP2040, Pico, Debug Probe); for Pico 2, copy the UF2 to its drive.</p>
+<label class="b">Choose UF2<input type="file" id="uf2" accept=".uf2"></label>
+<progress value="0" max="1" hidden></progress><div class="st"></div></div></section>
 
 <section class="step on" id="s1"><div class="head"><span class="n">1</span>Connect</div><div class="body">
 <p class="msg">Plug in the Transporter, then pick its second serial port.</p>
@@ -187,6 +194,24 @@ $('write').onclick=async()=>{
 };
 
 if(!('serial' in navigator))say('s1','Use Chrome or Edge (Web Serial)','err');
+</script>
+<script type="module">
+import { flashUf2 } from "./picoboot.js";
+const fw = document.getElementById('fw'), st = fw.querySelector('.st'), bar = fw.querySelector('progress');
+const say = (t, cls = '') => { st.textContent = t; st.className = 'st ' + cls };
+document.getElementById('uf2').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    say('Select the RP2 Boot device…');
+    await flashUf2(file, (n, total, phase) => {
+      bar.hidden = false; bar.max = total; bar.value = n; say(`${phase} ${n}/${total}`);
+    });
+    say(`Installed ${file.name}. The board restarts as FM-1 Transporter.`, 'ok');
+  } catch (x) { say(x.message, 'err') }
+};
+if (!('usb' in navigator)) say('Firmware install needs Chrome or Edge (WebUSB).', 'err');
 </script>
 </body>
 </html>

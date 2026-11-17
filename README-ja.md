@@ -25,7 +25,7 @@ FM-1 の USB 信号線につないだ小型ボード（RP2040 / RP2350）を使�
 ## 導入
 
 1. [Releases](../../releases) から使うボードの UF2 をダウンロードします。
-2. BOOTSEL を押しながらボードを接続し、`RPI-RP2` ドライブに UF2 をコピーします。
+2. BOOTSEL を押しながらボードを接続し、[ウェブアプリ](https://kurogedelic.github.io/FM-1-transporter/web/)から UF2 を書き込みます（RP2040 ボード）。`RPI-RP2` ドライブへのコピーでも構いません。
 3. [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) から `wl82loader.bin` を入手します。このリポジトリには同梱していません。ツール使用時にボードの RAM へ送られます。
 
 ## 使い方

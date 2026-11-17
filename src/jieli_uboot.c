@@ -1,6 +1,5 @@
 // JieLi WL82 UBOOT1.00 / LoaderV2 protocol, read-only subset.
-// Ported from jl-uboot-tool (jltech/uboot.py, cipher.py, crc.py) and the
-// fm-1-research-lab flow in tools/fm1_uboot_restore.py.
+// Ported from jl-uboot-tool (jltech/uboot.py, cipher.py, crc.py).
 
 #include "jieli_uboot.h"
 
@@ -282,7 +281,7 @@ void jl_keepalive(void) {
 }
 
 //--------------------------------------------------------------------+
-// RAM-run (ROM UBOOT1.00 stage only; requested by fm-1-research-lab)
+// RAM-run (ROM UBOOT1.00 stage only)
 //--------------------------------------------------------------------+
 // WL82 UBOOT1.00 runs every memory write/read through jl_crc_cipher, per
 // transfer. These refuse to run once the loader is up: it lives at
